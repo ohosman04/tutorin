@@ -12,15 +12,16 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")
 SYSTEM_PROMPT = "Summarize the user's statement in one sentence and ask one follow-up question."
 
 
-def generate(prompt: str, timeout: float = 60.0) -> dict:
+def generate(prompt: str, timeout: float = 60.0, system: str | None = SYSTEM_PROMPT) -> dict:
     """Send a prompt to Ollama and return the parsed response dict with added latency_s."""
     url = f"{OLLAMA_URL}/api/generate"
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": prompt,
-        "system": SYSTEM_PROMPT,
         "stream": False,
     }
+    if system:
+        payload["system"] = system
     logger.info("Sending prompt to %s (model=%s)", url, OLLAMA_MODEL)
 
     t_start = time.perf_counter()
