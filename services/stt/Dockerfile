@@ -2,18 +2,16 @@
 # dustynv/faster-whisper is built for Jetson (arm64, JetPack 6.x).
 # If the tag is unavailable, fall back to dustynv/cuda-python:r36.4.0 and
 # install faster-whisper manually — but prefer the pre-built image.
-FROM dustynv/faster-whisper:r36.4.0
+FROM dustynv/faster-whisper:r36.4.0-cu128-24.04
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    --index-url https://pypi.org/simple \
+    -r requirements.txt
 
 COPY server.py .
-
-# faster-whisper caches models under /root/.cache/huggingface by default.
-# Pre-download at build time so the first request isn't slow.
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', device='cpu', compute_type='int8')"
 
 EXPOSE 8000
 
