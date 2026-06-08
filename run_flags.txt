@@ -72,6 +72,39 @@ Set exact recording duration:
 
 
 
+SESSION PERSISTENCE
+-------------------
+
+Start a new tracked session (saves progress to deck.apkg.session.json):
+    python app.py quiz --deck deck.apkg --resume
+
+Resume a previous session (continues from next unanswered card):
+    python app.py quiz --deck deck.apkg --resume
+
+Wipe session and start over with a fresh shuffle:
+    python app.py quiz --deck deck.apkg --resume --reset-session
+
+Reset session without starting a new one:
+    python app.py quiz --deck deck.apkg --reset-session
+
+Resume with all TTS and auto-mode flags:
+    python app.py quiz --deck deck.apkg --record-mode auto --resume \
+        --speak-question --speak-feedback
+
+
+TTS (SPOKEN FEEDBACK)
+---------------------
+
+Speak feedback after each grade:
+    python app.py quiz --deck deck.apkg --speak-feedback
+
+Speak the question aloud before recording:
+    python app.py quiz --deck deck.apkg --speak-question
+
+Speak both question and feedback:
+    python app.py quiz --deck deck.apkg --speak-question --speak-feedback
+
+
 FREEFORM DIAGNOSTIC MODE
 -------------------------
 
