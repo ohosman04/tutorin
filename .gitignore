@@ -15,3 +15,5 @@ __pycache__/
 extracted_anki/
 
 .vscode/
+
+*.session.json

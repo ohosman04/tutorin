@@ -8,6 +8,7 @@ from audio import record_audio, record_until_enter, record_until_silence
 from clients.stt_client import transcribe_wav
 from clients.tts_client import build_spoken_feedback, speak
 from tutor.grader import grade_response
+from tutor.session_state import card_id, load_session, new_session, save_session
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,69 @@ def _try_speak(text: str) -> None:
         print(f"  [TTS error] {exc}")
 
 
+def _should_retry(transcript: str | None, grade: str) -> bool:
+    return not transcript or grade in ("incorrect", "partially_correct")
+
+
+def _answer_card(
+    card: dict,
+    label: str,
+    record_mode: str,
+    max_duration: float,
+    silence_duration: float,
+    min_record_duration: float,
+    energy_threshold: float | None,
+    speak_question: bool,
+    speak_feedback: bool,
+    scores: dict,
+) -> tuple[str | None, str | None]:
+    """
+    Run the record→grade→display pipeline for one card.
+    Returns (transcript, grade) — either may be None if the card was skipped.
+    """
+    print(f"  Q: {card['question']}")
+
+    if speak_question:
+        _try_speak(card["question"])
+
+    if not _prompt_enter_or_quit():
+        return "QUIT", None
+
+    loop_start = time.perf_counter()
+
+    transcript = _record_and_transcribe(
+        record_mode=record_mode,
+        max_duration=max_duration,
+        silence_duration=silence_duration,
+        min_record_duration=min_record_duration,
+        energy_threshold=energy_threshold,
+    )
+    if transcript is None:
+        print("  Skipping card due to error.")
+        return None, None
+    if not transcript:
+        print("  Nothing transcribed — skipping card.")
+        return "", None
+
+    t0 = time.perf_counter()
+    try:
+        grading = grade_response(card["question"], card["answer"], transcript)
+    except RuntimeError as exc:
+        print(f"  [Grader error] {exc}")
+        return transcript, None
+    logger.info("Graded in %.1fs", time.perf_counter() - t0)
+
+    _display_result(card, transcript, grading)
+
+    if speak_feedback:
+        _try_speak(build_spoken_feedback(grading))
+
+    logger.info("Total card time: %.1fs", time.perf_counter() - loop_start)
+    scores[grading["grade"]] = scores.get(grading["grade"], 0) + 1
+
+    return transcript, grading["grade"]
+
+
 def run_quiz(
     cards: list[dict],
     record_mode: str = "auto",
@@ -111,67 +175,124 @@ def run_quiz(
     energy_threshold: float | None = None,
     speak_feedback: bool = False,
     speak_question: bool = False,
+    session_file: str | None = None,
 ) -> None:
-    deck = list(cards)
-    random.shuffle(deck)
-    total = len(deck)
+    # ── record kwargs bundle (avoids repeating at every call site) ──
+    rec_kw = dict(
+        record_mode=record_mode,
+        max_duration=max_duration,
+        silence_duration=silence_duration,
+        min_record_duration=min_record_duration,
+        energy_threshold=energy_threshold,
+        speak_question=speak_question,
+        speak_feedback=speak_feedback,
+    )
 
+    # ── session setup ───────────────────────────────────────────────
+    if session_file is not None:
+        card_map = {card_id(c): c for c in cards}
+        state = load_session(session_file)
+        if state is None:
+            state = new_session(cards)
+            save_session(session_file, state)
+            print(f"  New session — {len(state['card_order'])} cards  [{session_file}]")
+        else:
+            done = state["next_index"]
+            total_deck = len(state["card_order"])
+            msg = f"  Resuming — {done}/{total_deck} answered"
+            if state["retry_queue"]:
+                msg += f", {len(state['retry_queue'])} retries pending"
+            print(msg)
+
+        remaining_ids = state["card_order"][state["next_index"]:]
+        main_cards = [card_map[cid] for cid in remaining_ids if cid in card_map]
+        total_deck = len(state["card_order"])
+    else:
+        main_cards = list(cards)
+        random.shuffle(main_cards)
+        total_deck = len(main_cards)
+        state = None
+
+    # ── header ──────────────────────────────────────────────────────
     mode_hint = {
         "auto": f"auto-stop on silence (max {max_duration}s)",
         "enter": f"press Enter to stop (max {max_duration}s)",
         "fixed": f"fixed {max_duration}s",
     }.get(record_mode, record_mode)
 
-    print(f"\n=== Quiz Mode — {total} cards ===")
+    display_total = len(main_cards)
+    if state and state["retry_queue"]:
+        display_total += len(state["retry_queue"])
+
+    print(f"\n=== Quiz Mode — {display_total} card(s) remaining ===")
     print(f"Recording: {mode_hint}\n")
 
     scores = {"correct": 0, "partially_correct": 0, "incorrect": 0}
+    new_retry_ids: list[str] = []  # collected this run, folded into retry_queue after main pass
 
-    for i, card in enumerate(deck, 1):
-        print(f"\nCard {i}/{total}")
-        print(f"  Q: {card['question']}")
+    # ── main pass ───────────────────────────────────────────────────
+    start_num = (state["next_index"] if state else 0) + 1
 
-        if speak_question:
-            _try_speak(card["question"])
+    for i, card in enumerate(main_cards):
+        print(f"\nCard {start_num + i}/{total_deck}")
 
-        if not _prompt_enter_or_quit():
+        transcript, grade = _answer_card(card, "Card", scores=scores, **rec_kw)
+
+        if transcript == "QUIT":
+            # Save before exiting so we resume from this card next time
+            if state:
+                save_session(session_file, state)
             print("Quiz ended early.")
-            break
+            _print_summary(scores)
+            return
 
-        loop_start = time.perf_counter()
+        # Card is consumed — advance index
+        if state:
+            state["next_index"] += 1
+            # Collect retry candidates (save after folding below)
+            if transcript is not None and _should_retry(transcript, grade or ""):
+                cid = card_id(card)
+                if cid not in new_retry_ids:
+                    new_retry_ids.append(cid)
+            save_session(session_file, state)
 
-        transcript = _record_and_transcribe(
-            record_mode=record_mode,
-            max_duration=max_duration,
-            silence_duration=silence_duration,
-            min_record_duration=min_record_duration,
-            energy_threshold=energy_threshold,
-        )
-        if transcript is None:
-            print("  Skipping card due to error.")
-            continue
+    # Fold this run's new retries into the persistent retry_queue
+    if state and new_retry_ids:
+        existing_set = set(state["retry_queue"])
+        for cid in new_retry_ids:
+            if cid not in existing_set:
+                state["retry_queue"].append(cid)
+                existing_set.add(cid)
+        save_session(session_file, state)
 
-        if not transcript:
-            print("  Nothing transcribed — skipping card.")
-            continue
+    # ── retry pass ──────────────────────────────────────────────────
+    if state and state["retry_queue"]:
+        retry_ids = list(state["retry_queue"])
+        retry_cards = [card_map[cid] for cid in retry_ids if cid in card_map]
+        if retry_cards:
+            print(f"\n  ── {len(retry_cards)} card(s) to retry ──")
 
-        t0 = time.perf_counter()
-        try:
-            grading = grade_response(card["question"], card["answer"], transcript)
-        except RuntimeError as exc:
-            print(f"  [Grader error] {exc}")
-            continue
-        logger.info("Graded in %.1fs", time.perf_counter() - t0)
+        for j, card in enumerate(retry_cards, 1):
+            cid = card_id(card)
+            print(f"\nRetry {j}/{len(retry_cards)}")
 
-        _display_result(card, transcript, grading)
+            transcript, grade = _answer_card(card, "Retry", scores=scores, **rec_kw)
 
-        if speak_feedback:
-            _try_speak(build_spoken_feedback(grading))
+            if transcript == "QUIT":
+                print("Quiz ended early.")
+                _print_summary(scores)
+                return
 
-        logger.info("Total card time: %.1fs", time.perf_counter() - loop_start)
+            # Answered correctly → clear from retry_queue
+            if transcript and grade and not _should_retry(transcript, grade):
+                if cid in state["retry_queue"]:
+                    state["retry_queue"].remove(cid)
+                    save_session(session_file, state)
 
-        scores[grading["grade"]] = scores.get(grading["grade"], 0) + 1
+    _print_summary(scores)
 
+
+def _print_summary(scores: dict) -> None:
     print(f"\n=== Session Summary ===")
     print(f"  Correct          : {scores['correct']}")
     print(f"  Partially correct: {scores['partially_correct']}")

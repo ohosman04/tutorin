@@ -161,6 +161,19 @@ def main():
         speak_feedback = "--speak-feedback" in args
         speak_question = "--speak-question" in args
 
+        # session flags
+        from tutor.session_state import session_path_for
+        session_file = None
+        if "--resume" in args:
+            session_file = session_path_for(os.path.abspath(deck_path))
+        if "--reset-session" in args:
+            sp = session_path_for(os.path.abspath(deck_path))
+            if os.path.exists(sp):
+                os.unlink(sp)
+                print(f"Session reset: {sp}")
+            else:
+                print("No session file found to reset.")
+
         # field mapping
         question_field = None
         answer_field = None
@@ -195,6 +208,7 @@ def main():
             energy_threshold=energy_threshold,
             speak_feedback=speak_feedback,
             speak_question=speak_question,
+            session_file=session_file,
         )
 
     elif mode == "freeform":
