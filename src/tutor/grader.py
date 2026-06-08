@@ -49,10 +49,23 @@ CONSERVATIVE BIAS RULES — APPLY STRICTLY
 
 - DO NOT reward topical relevance. Being about the same subject is not enough.
 - DO NOT mark correct unless most key concepts are present.
-- DO NOT mark incorrect if the answer is directionally related — use partially_correct instead.
+- Use partially_correct only when the transcript contains at least one specific concept from the expected answer or a strong paraphrase of one.
+- If the transcript is merely topically related but does not contain expected-answer concepts, mark incorrect.
 - When uncertain between correct and partially_correct: choose partially_correct.
-- When uncertain between partially_correct and incorrect: choose partially_correct.
+- When uncertain between partially_correct and incorrect: choose partially_correct only if the transcript contains a specific expected concept or strong paraphrase.
 - If the answer is broadly related but lacks important mechanisms or details: partially_correct.
+
+---
+
+EVIDENCE-GROUNDING RULES — APPLY STRICTLY
+
+- Only give the user credit for concepts that are actually present in the user's spoken answer.
+- Do not say "you identified", "you mentioned", "you correctly stated", or "you captured" unless that concept appears in the transcript.
+- Do not infer that the user meant a technical term unless the transcript gives strong evidence.
+- missing_points must come only from the expected answer.
+- Do not add missing concepts that are not in the expected answer.
+- Do not introduce outside facts unless needed to explain a contradiction.
+- Before returning JSON, verify that every credited concept is supported by the transcript.
 
 ---
 FEEDBACK RULES
@@ -71,7 +84,7 @@ Expected answer: The server locates the process waiting on the specified port, c
 User's spoken answer: It internally accepts this connection and sends this acceptance acknowledgement back to the sender.
 
 Output:
-{"grade": "partially_correct", "feedback": "You identified the general idea that the server accepts an incoming connection request. However, the expected answer requires explaining that the server locates the listening process on the specified port, creates a new socket, and identifies it using the connection's four-tuple.", "missing_points": ["locates process on specified port", "creates new socket", "uses four-tuple to identify socket"], "confidence": 0.86}
+{"grade": "partially_correct", "feedback": "Your answer is related to the idea of handling an incoming connection request, but it only describes a generic acceptance/acknowledgement. The expected answer requires explaining that the server locates the listening process on the specified port, creates a new socket, and identifies it using the connection's four-tuple.", "missing_points": ["locates process on specified port", "creates new socket", "uses four-tuple to identify socket"], "confidence": 0.86}
 
 ---
 
@@ -92,6 +105,22 @@ User's spoken answer: It helps the internet work.
 
 Output:
 {"grade": "partially_correct", "feedback": "Your answer is related to the role of DNS but is too vague to demonstrate understanding. The key idea that DNS specifically maps domain names to IP addresses is missing.", "missing_points": ["translates domain names", "returns IP addresses"], "confidence": 0.72}
+
+Example 4:
+Question: What are the three major components of the TCP congestion-control algorithm?
+Expected answer: Slow start, congestion avoidance, and fast recovery
+User's spoken answer: the C window and the receiver window and I don't know the third one.
+
+Output:
+{"grade": "incorrect", "feedback": "You mentioned window-related terms, but you did not name the required TCP congestion-control components. The expected answer was slow start, congestion avoidance, and fast recovery.", "missing_points": ["slow start", "congestion avoidance", "fast recovery"], "confidence": 0.9}
+
+Example 5:
+Question: What is the primary protocol used in the Internet's network layer?
+Expected answer: The primary protocol is the Internet Protocol (IP), which defines datagram fields and governs how end systems and routers act on them.
+User's spoken answer: The IP protocol or the internet protocol protocol.
+
+Output:
+{"grade": "partially_correct", "feedback": "You correctly identified IP, the Internet Protocol, as the primary protocol in the Internet's network layer. Your answer did not include that IP defines datagram fields and governs how end systems and routers act on them.", "missing_points": ["defines datagram fields", "governs how end systems and routers act on datagrams"], "confidence": 0.88}
 
 ---
 OUTPUT FORMAT
