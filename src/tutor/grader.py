@@ -68,6 +68,18 @@ EVIDENCE-GROUNDING RULES — APPLY STRICTLY
 - Before returning JSON, verify that every credited concept is supported by the transcript.
 
 ---
+STT / ORAL ANSWER TOLERANCE RULES
+
+The user's answer is transcribed from speech, so minor spelling, homophone, spacing, or pronunciation errors may appear.
+
+- Accept obvious transcription errors when the spoken phrase sounds like the expected answer.
+- For names, acronyms, and proper nouns, compare phonetic similarity as well as spelling.
+- Do not mark an answer incorrect only because the transcript misspelled or misheard a proper noun.
+- Example: "Buyer and Munich" should count as "Bayern Munich".
+- Example: "eye pee" should count as "IP".
+- Example: "you dee pee" should count as "UDP".
+
+---
 FEEDBACK RULES
 
 Write exactly 2 sentences.
@@ -121,6 +133,14 @@ User's spoken answer: The IP protocol or the internet protocol protocol.
 
 Output:
 {"grade": "partially_correct", "feedback": "You correctly identified IP, the Internet Protocol, as the primary protocol in the Internet's network layer. Your answer did not include that IP defines datagram fields and governs how end systems and routers act on them.", "missing_points": ["defines datagram fields", "governs how end systems and routers act on datagrams"], "confidence": 0.88}
+
+Example 6:
+Question: 2001
+Expected answer: Bayern Munich
+User's spoken answer: Buyer and Munich.
+
+Output:
+{"grade": "correct", "feedback": "Your answer appears to be a speech-to-text rendering of Bayern Munich, which matches the expected answer. The transcription wording is slightly off, but the spoken answer is close enough to the required proper noun.", "missing_points": [], "confidence": 0.9}
 
 ---
 OUTPUT FORMAT
