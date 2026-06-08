@@ -4,7 +4,7 @@ import random
 import tempfile
 import time
 
-from audio import record_until_enter
+from audio import record_audio, record_until_enter, record_until_silence
 from clients.stt_client import transcribe_wav
 from tutor.grader import grade_response
 
@@ -28,15 +28,36 @@ def _prompt_enter_or_quit() -> bool:
     return cmd != "q"
 
 
-def _record_and_transcribe(max_duration: float = DEFAULT_MAX_DURATION) -> str | None:
-    """Record until Enter is pressed and return transcript, or None on failure."""
+def _record_and_transcribe(
+    record_mode: str = "auto",
+    max_duration: float = DEFAULT_MAX_DURATION,
+    silence_duration: float = 1.2,
+    min_record_duration: float = 1.0,
+    energy_threshold: float | None = None,
+) -> str | None:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
 
     t0 = time.perf_counter()
     try:
-        record_until_enter(output_path=wav_path, max_duration=max_duration)
-        logger.info("Recorded in %.1fs", time.perf_counter() - t0)
+        if record_mode == "auto":
+            result = record_until_silence(
+                output_path=wav_path,
+                max_duration=max_duration,
+                silence_duration=silence_duration,
+                min_record_duration=min_record_duration,
+                energy_threshold=energy_threshold,
+            )
+            logger.info(
+                "Recorded %.1fs — stopped: %s — threshold: %.1f",
+                result["duration_s"], result["stopped_reason"], result["energy_threshold"],
+            )
+        elif record_mode == "enter":
+            record_until_enter(output_path=wav_path, max_duration=max_duration)
+            logger.info("Recorded in %.1fs", time.perf_counter() - t0)
+        else:  # fixed
+            record_audio(duration=max_duration, output_path=wav_path)
+            logger.info("Recorded in %.1fs", time.perf_counter() - t0)
     except RuntimeError as exc:
         print(f"  [Audio error] {exc}")
         os.unlink(wav_path)
@@ -70,13 +91,26 @@ def _display_result(card: dict, transcript: str, grading: dict) -> None:
     print("─" * 50)
 
 
-def run_quiz(cards: list[dict], max_duration: float = DEFAULT_MAX_DURATION) -> None:
+def run_quiz(
+    cards: list[dict],
+    record_mode: str = "auto",
+    max_duration: float = DEFAULT_MAX_DURATION,
+    silence_duration: float = 1.2,
+    min_record_duration: float = 1.0,
+    energy_threshold: float | None = None,
+) -> None:
     deck = list(cards)
     random.shuffle(deck)
     total = len(deck)
 
+    mode_hint = {
+        "auto": f"auto-stop on silence (max {max_duration}s)",
+        "enter": f"press Enter to stop (max {max_duration}s)",
+        "fixed": f"fixed {max_duration}s",
+    }.get(record_mode, record_mode)
+
     print(f"\n=== Quiz Mode — {total} cards ===")
-    print(f"Max recording duration: {max_duration}s per answer (press Enter to stop early)\n")
+    print(f"Recording: {mode_hint}\n")
 
     scores = {"correct": 0, "partially_correct": 0, "incorrect": 0}
 
@@ -90,7 +124,13 @@ def run_quiz(cards: list[dict], max_duration: float = DEFAULT_MAX_DURATION) -> N
 
         loop_start = time.perf_counter()
 
-        transcript = _record_and_transcribe(max_duration=max_duration)
+        transcript = _record_and_transcribe(
+            record_mode=record_mode,
+            max_duration=max_duration,
+            silence_duration=silence_duration,
+            min_record_duration=min_record_duration,
+            energy_threshold=energy_threshold,
+        )
         if transcript is None:
             print("  Skipping card due to error.")
             continue

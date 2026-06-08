@@ -111,6 +111,19 @@ def main():
                     print(f"    - {name}")
             sys.exit(0)
 
+        # --record-mode
+        record_mode = "auto"
+        if "--record-mode" in args:
+            try:
+                record_mode = args[args.index("--record-mode") + 1]
+            except IndexError:
+                print("Error: --record-mode requires a value: auto | enter | fixed")
+                sys.exit(1)
+            if record_mode not in ("auto", "enter", "fixed"):
+                print(f"Error: unknown --record-mode {record_mode!r}. Use: auto | enter | fixed")
+                sys.exit(1)
+
+        # --duration
         max_duration = 60.0
         if "--duration" in args:
             try:
@@ -119,6 +132,32 @@ def main():
                 print("Error: --duration requires a number (e.g. --duration 10)")
                 sys.exit(1)
 
+        # auto-mode tuning flags
+        silence_duration = 1.2
+        if "--silence-duration" in args:
+            try:
+                silence_duration = float(args[args.index("--silence-duration") + 1])
+            except (IndexError, ValueError):
+                print("Error: --silence-duration requires a number (e.g. --silence-duration 1.5)")
+                sys.exit(1)
+
+        min_record_duration = 1.0
+        if "--min-record-duration" in args:
+            try:
+                min_record_duration = float(args[args.index("--min-record-duration") + 1])
+            except (IndexError, ValueError):
+                print("Error: --min-record-duration requires a number")
+                sys.exit(1)
+
+        energy_threshold = None
+        if "--energy-threshold" in args:
+            try:
+                energy_threshold = float(args[args.index("--energy-threshold") + 1])
+            except (IndexError, ValueError):
+                print("Error: --energy-threshold requires a number (e.g. --energy-threshold 800)")
+                sys.exit(1)
+
+        # field mapping
         question_field = None
         answer_field = None
         if "--question-field" in args:
@@ -143,7 +182,14 @@ def main():
             print("Deck loaded but contains no usable cards.")
             sys.exit(1)
         print(f"Loaded {len(cards)} cards from {deck_path}")
-        run_quiz(cards, max_duration=max_duration)
+        run_quiz(
+            cards,
+            record_mode=record_mode,
+            max_duration=max_duration,
+            silence_duration=silence_duration,
+            min_record_duration=min_record_duration,
+            energy_threshold=energy_threshold,
+        )
 
     elif mode == "freeform":
         _freeform()
