@@ -6,6 +6,7 @@ import time
 
 from audio import record_audio, record_until_enter, record_until_silence
 from clients.stt_client import transcribe_wav
+from clients.tts_client import build_spoken_feedback, speak
 from tutor.grader import grade_response
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,16 @@ def _display_result(card: dict, transcript: str, grading: dict) -> None:
     print("─" * 50)
 
 
+def _try_speak(text: str) -> None:
+    """Speak text via TTS, printing a short error message on failure without raising."""
+    try:
+        speak(text)
+    except RuntimeError as exc:
+        print(f"  [TTS error] {exc}")
+    except Exception as exc:
+        print(f"  [TTS error] {exc}")
+
+
 def run_quiz(
     cards: list[dict],
     record_mode: str = "auto",
@@ -98,6 +109,8 @@ def run_quiz(
     silence_duration: float = 1.2,
     min_record_duration: float = 1.0,
     energy_threshold: float | None = None,
+    speak_feedback: bool = False,
+    speak_question: bool = False,
 ) -> None:
     deck = list(cards)
     random.shuffle(deck)
@@ -117,6 +130,9 @@ def run_quiz(
     for i, card in enumerate(deck, 1):
         print(f"\nCard {i}/{total}")
         print(f"  Q: {card['question']}")
+
+        if speak_question:
+            _try_speak(card["question"])
 
         if not _prompt_enter_or_quit():
             print("Quiz ended early.")
@@ -148,6 +164,10 @@ def run_quiz(
         logger.info("Graded in %.1fs", time.perf_counter() - t0)
 
         _display_result(card, transcript, grading)
+
+        if speak_feedback:
+            _try_speak(build_spoken_feedback(grading))
+
         logger.info("Total card time: %.1fs", time.perf_counter() - loop_start)
 
         scores[grading["grade"]] = scores.get(grading["grade"], 0) + 1

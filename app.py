@@ -157,6 +157,10 @@ def main():
                 print("Error: --energy-threshold requires a number (e.g. --energy-threshold 800)")
                 sys.exit(1)
 
+        # TTS flags
+        speak_feedback = "--speak-feedback" in args
+        speak_question = "--speak-question" in args
+
         # field mapping
         question_field = None
         answer_field = None
@@ -189,6 +193,8 @@ def main():
             silence_duration=silence_duration,
             min_record_duration=min_record_duration,
             energy_threshold=energy_threshold,
+            speak_feedback=speak_feedback,
+            speak_question=speak_question,
         )
 
     elif mode == "freeform":
