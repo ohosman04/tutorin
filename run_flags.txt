@@ -1,0 +1,129 @@
+Jetson Local Tutor — Run Flags Reference
+=========================================
+
+QUIZ MODE
+---------
+
+Basic run (all defaults):
+    python app.py quiz --deck deck.apkg
+
+Inspect deck field names before running:
+    python app.py quiz --deck deck.apkg --inspect-fields
+
+Manual field mapping:
+    python app.py quiz --deck deck.apkg --question-field Definition --answer-field Word
+    python app.py quiz --deck deck.apkg --question-field Front --answer-field Back
+
+
+RECORDING MODES
+---------------
+
+Auto-stop on silence (default):
+    python app.py quiz --deck deck.apkg --record-mode auto
+
+Press Enter to stop:
+    python app.py quiz --deck deck.apkg --record-mode enter
+
+Fixed duration:
+    python app.py quiz --deck deck.apkg --record-mode fixed --duration 10
+
+
+AUTO MODE TUNING
+----------------
+
+Set max recording duration:
+    python app.py quiz --deck deck.apkg --record-mode auto --duration 30
+
+Set how long silence must last before stopping (default 1.2s):
+    python app.py quiz --deck deck.apkg --record-mode auto --silence-duration 1.5
+
+Set minimum time before silence detection kicks in (default 1.0s):
+    python app.py quiz --deck deck.apkg --record-mode auto --min-record-duration 2.0
+
+Set energy threshold manually (int16 RMS scale, ~300-3000):
+    python app.py quiz --deck deck.apkg --record-mode auto --energy-threshold 800
+
+Noisy room — raise threshold and require longer silence:
+    python app.py quiz --deck deck.apkg --record-mode auto --energy-threshold 1200 --silence-duration 2.0
+
+Quiet room — lower threshold and shorter silence window:
+    python app.py quiz --deck deck.apkg --record-mode auto --energy-threshold 300 --silence-duration 1.0
+
+Combine all auto tuning flags:
+    python app.py quiz --deck deck.apkg --record-mode auto \
+        --duration 45 \
+        --silence-duration 1.5 \
+        --min-record-duration 1.5 \
+        --energy-threshold 600
+
+
+ENTER MODE TUNING
+-----------------
+
+Set max duration before auto-stop (if Enter not pressed):
+    python app.py quiz --deck deck.apkg --record-mode enter --duration 30
+
+
+FIXED MODE TUNING
+-----------------
+
+Set exact recording duration:
+    python app.py quiz --deck deck.apkg --record-mode fixed --duration 8
+
+
+
+FREEFORM DIAGNOSTIC MODE
+-------------------------
+
+Basic freeform:
+    python app.py freeform
+
+Set fixed recording duration (env var):
+    RECORD_DURATION=8 python app.py freeform
+
+
+STT STANDALONE TEST
+--------------------
+
+Test STT service with a WAV file:
+    python tests/test_stt_transcribe.py recording.wav
+
+
+LLM STANDALONE TEST
+--------------------
+
+Test Ollama with a prompt:
+    python tests/test_llm_generate.py "I have been studying Python for three months."
+
+
+GRADER STANDALONE TEST
+-----------------------
+
+Offline (no Ollama):
+    python tests/test_grader_prompt.py
+
+Live grading test (Ollama required):
+    python tests/test_grader_prompt.py --live
+
+
+DOCKER — STT CONTAINER
+-----------------------
+
+Build:
+    docker build -t jetson-stt:latest ./services/stt
+
+Run on Jetson with GPU:
+    docker run --rm --runtime nvidia --gpus all -p 8000:8000 jetson-stt:latest
+
+Check STT service health:
+    curl http://localhost:8000/health
+
+
+OLLAMA
+------
+
+Check Ollama is running:
+    curl http://localhost:11434/api/tags
+
+Pull model if missing:
+    ollama pull qwen2.5:1.5b
