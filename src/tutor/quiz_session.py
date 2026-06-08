@@ -4,13 +4,13 @@ import random
 import tempfile
 import time
 
-from audio import record_audio
+from audio import record_until_enter
 from clients.stt_client import transcribe_wav
 from tutor.grader import grade_response
 
 logger = logging.getLogger(__name__)
 
-RECORD_DURATION = float(os.environ.get("RECORD_DURATION", "5"))
+DEFAULT_MAX_DURATION = float(os.environ.get("RECORD_MAX_DURATION", "60"))
 
 _GRADE_ICONS = {
     "correct": "✓",
@@ -28,15 +28,14 @@ def _prompt_enter_or_quit() -> bool:
     return cmd != "q"
 
 
-def _record_and_transcribe() -> str | None:
-    """Record microphone audio and return transcript, or None on failure."""
+def _record_and_transcribe(max_duration: float = DEFAULT_MAX_DURATION) -> str | None:
+    """Record until Enter is pressed and return transcript, or None on failure."""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
 
     t0 = time.perf_counter()
     try:
-        print(f"  Recording {RECORD_DURATION}s — speak now...")
-        record_audio(duration=RECORD_DURATION, output_path=wav_path)
+        record_until_enter(output_path=wav_path, max_duration=max_duration)
         logger.info("Recorded in %.1fs", time.perf_counter() - t0)
     except RuntimeError as exc:
         print(f"  [Audio error] {exc}")
@@ -71,13 +70,13 @@ def _display_result(card: dict, transcript: str, grading: dict) -> None:
     print("─" * 50)
 
 
-def run_quiz(cards: list[dict]) -> None:
+def run_quiz(cards: list[dict], max_duration: float = DEFAULT_MAX_DURATION) -> None:
     deck = list(cards)
     random.shuffle(deck)
     total = len(deck)
 
     print(f"\n=== Quiz Mode — {total} cards ===")
-    print(f"Recording duration: {RECORD_DURATION}s per answer\n")
+    print(f"Max recording duration: {max_duration}s per answer (press Enter to stop early)\n")
 
     scores = {"correct": 0, "partially_correct": 0, "incorrect": 0}
 
@@ -91,7 +90,7 @@ def run_quiz(cards: list[dict]) -> None:
 
         loop_start = time.perf_counter()
 
-        transcript = _record_and_transcribe()
+        transcript = _record_and_transcribe(max_duration=max_duration)
         if transcript is None:
             print("  Skipping card due to error.")
             continue
