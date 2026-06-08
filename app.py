@@ -9,49 +9,44 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from audio import record_audio
 from clients.stt_client import transcribe_wav
 from clients.llm_client import generate, OLLAMA_MODEL
+from anki_parser import load_deck
+from tutor.quiz_session import run_quiz
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 RECORD_DURATION = float(os.environ.get("RECORD_DURATION", "5"))
 
-TUTOR_SYSTEM = (
-    "You are a concise oral tutoring assistant. "
-    "Summarize what the user said in one sentence and ask one useful follow-up question."
-)
 
-
-def run_loop():
-    print("=== Jetson Local Tutor ===")
-    print(f"Model : {OLLAMA_MODEL}")
-    print(f"Record: {RECORD_DURATION}s per turn")
-    print("Press Enter to speak, q + Enter to quit.\n")
+def _freeform():
+    """Diagnostic: freeform microphone -> STT -> Ollama conversation."""
+    SYSTEM = (
+        "You are a concise oral tutoring assistant. "
+        "Summarize what the user said in one sentence and ask one useful follow-up question."
+    )
+    print("=== Freeform Mode (diagnostic) ===")
+    print(f"Model : {OLLAMA_MODEL}  |  Record: {RECORD_DURATION}s\n")
 
     while True:
         try:
-            cmd = input("[ Press Enter to record / q to quit ] ").strip().lower()
+            cmd = input("[ Enter to record / q to quit ] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print("\nExiting.")
             break
-
         if cmd == "q":
-            print("Goodbye.")
             break
 
         loop_start = time.perf_counter()
 
-        # --- Record ---
-        t0 = time.perf_counter()
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             wav_path = tmp.name
+        t0 = time.perf_counter()
         try:
             record_audio(duration=RECORD_DURATION, output_path=wav_path)
         except RuntimeError as exc:
             print(f"[Audio error] {exc}")
             continue
-        print(f"  Recorded in {time.perf_counter() - t0:.1f}s")
+        logger.info("Recorded in %.1fs", time.perf_counter() - t0)
 
-        # --- STT ---
         t0 = time.perf_counter()
         try:
             stt_result = transcribe_wav(wav_path)
@@ -60,28 +55,62 @@ def run_loop():
             continue
         finally:
             os.unlink(wav_path)
-
         transcript = stt_result.get("transcript", "").strip()
-        print(f"  STT in {time.perf_counter() - t0:.1f}s")
-        print(f"\nYou said: {transcript or '(empty)'}\n")
+        logger.info("Transcribed in %.1fs", time.perf_counter() - t0)
+        print(f"\nYou said: {transcript or '(empty)'}")
 
         if not transcript:
-            print("Nothing transcribed — try again.\n")
             continue
 
-        # --- LLM ---
-        prompt = f"The user said: \"{transcript}\""
         t0 = time.perf_counter()
         try:
-            llm_result = generate(prompt, system=TUTOR_SYSTEM)
+            llm_result = generate(f'The user said: "{transcript}"', system=SYSTEM)
         except RuntimeError as exc:
             print(f"[LLM error] {exc}")
             continue
-        print(f"  LLM in {time.perf_counter() - t0:.1f}s")
+        logger.info("LLM in %.1fs", time.perf_counter() - t0)
 
-        print(f"\nTutor: {llm_result.get('response', '').strip()}\n")
-        print(f"  Total loop: {time.perf_counter() - loop_start:.1f}s\n")
+        print(f"Tutor: {llm_result.get('response', '').strip()}")
+        logger.info("Total loop: %.1fs", time.perf_counter() - loop_start)
+
+
+def _usage():
+    print("Usage:")
+    print("  python app.py quiz --deck path/to/deck.apkg")
+    print("  python app.py freeform")
+    sys.exit(1)
+
+
+def main():
+    args = sys.argv[1:]
+
+    if not args:
+        _usage()
+
+    mode = args[0]
+
+    if mode == "quiz":
+        if "--deck" not in args:
+            print("Error: quiz mode requires --deck path/to/deck.apkg")
+            sys.exit(1)
+        deck_path = args[args.index("--deck") + 1]
+        try:
+            cards = load_deck(deck_path)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"[Deck error] {exc}")
+            sys.exit(1)
+        if not cards:
+            print("Deck loaded but contains no usable cards.")
+            sys.exit(1)
+        print(f"Loaded {len(cards)} cards from {deck_path}")
+        run_quiz(cards)
+
+    elif mode == "freeform":
+        _freeform()
+
+    else:
+        _usage()
 
 
 if __name__ == "__main__":
-    run_loop()
+    main()
