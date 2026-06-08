@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from audio import record_audio
 from clients.stt_client import transcribe_wav
 from clients.llm_client import generate, OLLAMA_MODEL
-from anki_parser import load_deck
+from anki_parser import load_deck, inspect_deck_fields
 from tutor.quiz_session import run_quiz
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -77,6 +77,8 @@ def _freeform():
 def _usage():
     print("Usage:")
     print("  python app.py quiz --deck path/to/deck.apkg [--duration SECONDS]")
+    print("                     [--inspect-fields]")
+    print("                     [--question-field NAME --answer-field NAME]")
     print("  python app.py freeform")
     sys.exit(1)
 
@@ -95,6 +97,20 @@ def main():
             sys.exit(1)
         deck_path = args[args.index("--deck") + 1]
 
+        # --inspect-fields: print field names and exit
+        if "--inspect-fields" in args:
+            try:
+                info = inspect_deck_fields(deck_path)
+            except (FileNotFoundError, ValueError) as exc:
+                print(f"[Deck error] {exc}")
+                sys.exit(1)
+            print(f"Note types in {deck_path}:")
+            for model_name, field_names in info.items():
+                print(f"  {model_name}")
+                for name in field_names:
+                    print(f"    - {name}")
+            sys.exit(0)
+
         max_duration = 60.0
         if "--duration" in args:
             try:
@@ -103,8 +119,23 @@ def main():
                 print("Error: --duration requires a number (e.g. --duration 10)")
                 sys.exit(1)
 
+        question_field = None
+        answer_field = None
+        if "--question-field" in args:
+            try:
+                question_field = args[args.index("--question-field") + 1]
+            except IndexError:
+                print("Error: --question-field requires a field name")
+                sys.exit(1)
+        if "--answer-field" in args:
+            try:
+                answer_field = args[args.index("--answer-field") + 1]
+            except IndexError:
+                print("Error: --answer-field requires a field name")
+                sys.exit(1)
+
         try:
-            cards = load_deck(deck_path)
+            cards = load_deck(deck_path, question_field=question_field, answer_field=answer_field)
         except (FileNotFoundError, ValueError) as exc:
             print(f"[Deck error] {exc}")
             sys.exit(1)
