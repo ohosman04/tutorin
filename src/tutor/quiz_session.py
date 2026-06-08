@@ -228,7 +228,6 @@ def run_quiz(
     print(f"Recording: {mode_hint}\n")
 
     scores = {"correct": 0, "partially_correct": 0, "incorrect": 0}
-    new_retry_ids: list[str] = []  # collected this run, folded into retry_queue after main pass
 
     # ── main pass ───────────────────────────────────────────────────
     start_num = (state["next_index"] if state else 0) + 1
@@ -239,31 +238,21 @@ def run_quiz(
         transcript, grade = _answer_card(card, "Card", scores=scores, **rec_kw)
 
         if transcript == "QUIT":
-            # Save before exiting so we resume from this card next time
+            # next_index not yet advanced — resumes from this card
             if state:
                 save_session(session_file, state)
             print("Quiz ended early.")
             _print_summary(scores)
             return
 
-        # Card is consumed — advance index
+        # Card is consumed — advance index and persist retries immediately
         if state:
             state["next_index"] += 1
-            # Collect retry candidates (save after folding below)
             if transcript is not None and _should_retry(transcript, grade or ""):
                 cid = card_id(card)
-                if cid not in new_retry_ids:
-                    new_retry_ids.append(cid)
+                if cid not in state["retry_queue"]:
+                    state["retry_queue"].append(cid)
             save_session(session_file, state)
-
-    # Fold this run's new retries into the persistent retry_queue
-    if state and new_retry_ids:
-        existing_set = set(state["retry_queue"])
-        for cid in new_retry_ids:
-            if cid not in existing_set:
-                state["retry_queue"].append(cid)
-                existing_set.add(cid)
-        save_session(session_file, state)
 
     # ── retry pass ──────────────────────────────────────────────────
     if state and state["retry_queue"]:
