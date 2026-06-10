@@ -19,9 +19,14 @@ Rules:
 
 
 def generate_followup_question(
-    question: str, expected: str, user_answer: str, feedback: str
+    question: str, expected: str, user_answer: str, feedback: str,
+    feedback_language: str = "English",
 ) -> str:
     """Return a single follow-up question string, or '' on failure."""
+    system = _SYSTEM
+    if feedback_language != "English":
+        system += f"\n- Generate the follow-up question in {feedback_language}."
+
     prompt = (
         f"Original question: {question}\n"
         f"Expected answer: {expected}\n"
@@ -30,7 +35,7 @@ def generate_followup_question(
         "Generate one short follow-up question:"
     )
     try:
-        result = generate(prompt, system=_SYSTEM)
+        result = generate(prompt, system=system)
         return result.get("response", "").strip()
     except RuntimeError as exc:
         logger.warning("Follow-up generation failed: %s", exc)

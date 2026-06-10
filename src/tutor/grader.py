@@ -151,6 +151,25 @@ Schema: {"grade": "correct|partially_correct|incorrect", "feedback": "<2 sentenc
 
 VALID_GRADES = {"correct", "partially_correct", "incorrect"}
 
+_LANGUAGE_ADDENDUM = """\
+
+---
+LANGUAGE NOTE
+
+This deck is in {lang}. Follow these additional rules:
+- Grade based on meaning and semantic equivalence, not exact wording.
+- Accept correct answers expressed naturally in {lang}.
+- Write your feedback in {lang} when the student's answer is in {lang}.
+- If a misunderstanding needs explanation, use whichever language is clearest.
+- Do not penalise minor grammatical errors if the meaning is correct.\
+"""
+
+
+def _build_system(feedback_language: str = "English") -> str:
+    if feedback_language == "English":
+        return _SYSTEM
+    return _SYSTEM + _LANGUAGE_ADDENDUM.format(lang=feedback_language)
+
 
 def build_prompt(question: str, expected: str, transcript: str) -> str:
     return (
@@ -194,14 +213,16 @@ def _parse_response(raw: str) -> dict:
     }
 
 
-def grade_response(question: str, expected: str, transcript: str) -> dict:
+def grade_response(
+    question: str, expected: str, transcript: str, feedback_language: str = "English"
+) -> dict:
     """
     Grade a spoken answer against the expected answer.
     Returns a validated dict with grade/feedback/missing_points/confidence
     plus latency_s from the LLM call.
     """
     prompt = build_prompt(question, expected, transcript)
-    llm_result = generate(prompt, system=_SYSTEM)
+    llm_result = generate(prompt, system=_build_system(feedback_language))
 
     raw_text = llm_result.get("response", "")
     try:

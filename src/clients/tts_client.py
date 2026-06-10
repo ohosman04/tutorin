@@ -36,8 +36,13 @@ def build_spoken_feedback(grading: dict) -> str:
     return " ".join(parts)
 
 
-def speak(text: str, model_path: str = PIPER_MODEL) -> None:
-    """Synthesize text with Piper CLI and play via aplay. Raises RuntimeError on failure."""
+def speak(text: str, model_path: str | None = None) -> None:
+    """Synthesize text with Piper CLI and play via aplay. Raises RuntimeError on failure.
+
+    model_path: path to .onnx Piper voice model. Defaults to PIPER_MODEL env var / built-in default.
+    """
+    if model_path is None:
+        model_path = PIPER_MODEL
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
 

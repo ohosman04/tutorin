@@ -37,6 +37,7 @@ def _record_and_transcribe(
     silence_duration: float = 1.2,
     min_record_duration: float = 1.0,
     energy_threshold: float | None = None,
+    stt_language: str | None = None,
 ) -> str | None:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
@@ -68,7 +69,7 @@ def _record_and_transcribe(
 
     t0 = time.perf_counter()
     try:
-        stt_result = transcribe_wav(wav_path)
+        stt_result = transcribe_wav(wav_path, language=stt_language)
     except Exception as exc:
         print(f"  [STT error] {exc}")
         return None
@@ -94,10 +95,10 @@ def _display_result(card: dict, transcript: str, grading: dict) -> None:
     print("─" * 50)
 
 
-def _try_speak(text: str) -> None:
+def _try_speak(text: str, model_path: str | None = None) -> None:
     """Speak text via TTS, printing a short error message on failure without raising."""
     try:
-        speak(text)
+        speak(text, model_path=model_path)
     except RuntimeError as exc:
         print(f"  [TTS error] {exc}")
     except Exception as exc:
@@ -119,17 +120,21 @@ def _do_followup(
     energy_threshold: float | None,
     speak_question: bool,
     speak_feedback: bool,
+    stt_language: str | None = None,
+    piper_model: str | None = None,
+    feedback_language: str = "English",
 ) -> None:
     """Ask one follow-up question, record the answer, grade it, and speak a brief response."""
     followup_q = generate_followup_question(
-        card["question"], card["answer"], transcript, grading["feedback"]
+        card["question"], card["answer"], transcript, grading["feedback"],
+        feedback_language=feedback_language,
     )
     if not followup_q:
         return
 
     print(f"\n  Follow-up: {followup_q}")
     if speak_question:
-        _try_speak(followup_q)
+        _try_speak(followup_q, model_path=piper_model)
 
     if not _prompt_enter_or_quit():
         return
@@ -140,12 +145,16 @@ def _do_followup(
         silence_duration=silence_duration,
         min_record_duration=min_record_duration,
         energy_threshold=energy_threshold,
+        stt_language=stt_language,
     )
     if not fu_transcript:
         return
 
     try:
-        fu_grading = grade_response(card["question"], card["answer"], fu_transcript)
+        fu_grading = grade_response(
+            card["question"], card["answer"], fu_transcript,
+            feedback_language=feedback_language,
+        )
     except RuntimeError as exc:
         print(f"  [Grader error] {exc}")
         return
@@ -153,7 +162,7 @@ def _do_followup(
     response_text = build_followup_response(fu_grading["grade"], fu_grading)
     print(f"  Tutor: {response_text}")
     if speak_feedback:
-        _try_speak(response_text)
+        _try_speak(response_text, model_path=piper_model)
 
 
 def _answer_card(
@@ -168,6 +177,9 @@ def _answer_card(
     speak_feedback: bool,
     scores: dict,
     followups: bool = False,
+    stt_language: str | None = None,
+    piper_model: str | None = None,
+    feedback_language: str = "English",
 ) -> tuple[str | None, str | None]:
     """
     Run the record→grade→display pipeline for one card.
@@ -176,7 +188,7 @@ def _answer_card(
     print(f"  Q: {card['question']}")
 
     if speak_question:
-        _try_speak(card["question"])
+        _try_speak(card["question"], model_path=piper_model)
 
     if not _prompt_enter_or_quit():
         return "QUIT", None
@@ -189,6 +201,7 @@ def _answer_card(
         silence_duration=silence_duration,
         min_record_duration=min_record_duration,
         energy_threshold=energy_threshold,
+        stt_language=stt_language,
     )
     if transcript is None:
         print("  Skipping card due to error.")
@@ -199,7 +212,10 @@ def _answer_card(
 
     t0 = time.perf_counter()
     try:
-        grading = grade_response(card["question"], card["answer"], transcript)
+        grading = grade_response(
+            card["question"], card["answer"], transcript,
+            feedback_language=feedback_language,
+        )
     except RuntimeError as exc:
         print(f"  [Grader error] {exc}")
         return transcript, None
@@ -208,7 +224,7 @@ def _answer_card(
     _display_result(card, transcript, grading)
 
     if speak_feedback:
-        _try_speak(build_spoken_feedback(grading))
+        _try_speak(build_spoken_feedback(grading), model_path=piper_model)
 
     if followups and grading["grade"] == "incorrect":
         _do_followup(
@@ -222,6 +238,9 @@ def _answer_card(
             energy_threshold=energy_threshold,
             speak_question=speak_question,
             speak_feedback=speak_feedback,
+            stt_language=stt_language,
+            piper_model=piper_model,
+            feedback_language=feedback_language,
         )
 
     logger.info("Total card time: %.1fs", time.perf_counter() - loop_start)
@@ -241,6 +260,9 @@ def run_quiz(
     speak_question: bool = False,
     session_file: str | None = None,
     followups: bool = False,
+    stt_language: str | None = None,
+    piper_model: str | None = None,
+    feedback_language: str = "English",
 ) -> None:
     # ── record kwargs bundle (avoids repeating at every call site) ──
     rec_kw = dict(
@@ -252,6 +274,9 @@ def run_quiz(
         speak_question=speak_question,
         speak_feedback=speak_feedback,
         followups=followups,
+        stt_language=stt_language,
+        piper_model=piper_model,
+        feedback_language=feedback_language,
     )
 
     # ── session setup ───────────────────────────────────────────────

@@ -105,6 +105,64 @@ Speak both question and feedback:
     python app.py quiz --deck deck.apkg --speak-question --speak-feedback
 
 
+MULTI-LANGUAGE SUPPORT
+----------------------
+
+Set deck language (resolves STT language, Piper model, and grader language automatically):
+    python app.py quiz --deck spanish.apkg --language es
+    python app.py quiz --deck french.apkg  --language fr
+    python app.py quiz --deck german.apkg  --language de
+
+With TTS (question and feedback spoken in the target language):
+    python app.py quiz --deck spanish.apkg --language es \
+        --speak-question \
+        --speak-feedback
+
+Override just the STT language (e.g. deck is English but speaker is non-native):
+    python app.py quiz --deck deck.apkg --language en --stt-language en
+
+Override the Piper voice model path explicitly:
+    python app.py quiz --deck spanish.apkg --language es \
+        --piper-model ~/piper/models/es_ES-sharvard-medium.onnx
+
+All language flags together:
+    python app.py quiz --deck spanish.apkg \
+        --language es \
+        --stt-language es \
+        --piper-model ~/piper/models/es_ES-davefx-medium.onnx \
+        --speak-question \
+        --speak-feedback
+
+With session resume and follow-ups:
+    python app.py quiz --deck french.apkg \
+        --language fr \
+        --speak-question \
+        --speak-feedback \
+        --resume \
+        --followups
+
+Language resolution order (highest priority first):
+    1. --stt-language  (overrides --language for STT)
+    2. --piper-model   (overrides language-specific TTS default)
+    3. --language      (sets all three: STT, Piper model, grader language)
+    4. env/defaults    (PIPER_MODEL env var / built-in en_US-lessac model)
+
+Supported --language codes (built-in defaults):
+    en   English     es   Spanish     fr   French
+    de   German      it   Italian     pt   Portuguese
+    zh   Chinese     ja   Japanese
+
+For unlisted languages, use --stt-language and --piper-model explicitly.
+
+NOTE: The STT server uses tiny.en (English-only) by default.
+For non-English STT, set WHISPER_MODEL=tiny on the Jetson before starting the server:
+    WHISPER_MODEL=tiny uvicorn server:app --host 0.0.0.0 --port 8000
+
+Piper model files must be downloaded manually.
+See: https://github.com/rhasspy/piper/releases for available voices.
+Place .onnx and .onnx.json files in ~/piper/models/<lang>/ on the Jetson.
+
+
 ADAPTIVE FOLLOW-UPS
 --------------------
 

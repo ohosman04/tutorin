@@ -164,6 +164,43 @@ def main():
         # follow-up flag
         followups = "--followups" in args
 
+        # language flags
+        language = None
+        if "--language" in args:
+            try:
+                language = args[args.index("--language") + 1]
+            except IndexError:
+                print("Error: --language requires a value (e.g. --language es)")
+                sys.exit(1)
+
+        cli_stt_language = None
+        if "--stt-language" in args:
+            try:
+                cli_stt_language = args[args.index("--stt-language") + 1]
+            except IndexError:
+                print("Error: --stt-language requires a value (e.g. --stt-language es)")
+                sys.exit(1)
+
+        cli_piper_model = None
+        if "--piper-model" in args:
+            try:
+                cli_piper_model = args[args.index("--piper-model") + 1]
+            except IndexError:
+                print("Error: --piper-model requires a path")
+                sys.exit(1)
+
+        from tutor.lang_config import resolve_lang_config
+        lang_cfg = resolve_lang_config(
+            language=language,
+            stt_language=cli_stt_language,
+            piper_model=cli_piper_model,
+        )
+
+        if language or cli_stt_language or cli_piper_model:
+            print(f"  Language       : {language or 'not set'}")
+            print(f"  STT language   : {lang_cfg['stt_language']}")
+            print(f"  Piper model    : {lang_cfg['piper_model'] or '(env/default)'}")
+
         # session flags
         from tutor.session_state import session_path_for
         session_file = None
@@ -213,6 +250,9 @@ def main():
             speak_question=speak_question,
             session_file=session_file,
             followups=followups,
+            stt_language=lang_cfg["stt_language"],
+            piper_model=lang_cfg["piper_model"],
+            feedback_language=lang_cfg["feedback_language"],
         )
 
     elif mode == "freeform":
