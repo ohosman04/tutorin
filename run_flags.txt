@@ -105,6 +105,27 @@ Speak both question and feedback:
     python app.py quiz --deck deck.apkg --speak-question --speak-feedback
 
 
+ADAPTIVE FOLLOW-UPS
+--------------------
+
+Enable follow-up questions (triggers only on incorrect answers):
+    python app.py quiz --deck deck.apkg --followups
+
+With TTS (follow-up spoken aloud, response spoken after grading):
+    python app.py quiz --deck deck.apkg --speak-question --speak-feedback --followups
+
+With session resume and all flags:
+    python app.py quiz --deck deck.apkg \
+        --speak-question \
+        --speak-feedback \
+        --resume \
+        --followups
+
+Note: --followups is OFF by default. Without it, behavior is unchanged.
+      At most one follow-up is asked per card. No recursive follow-ups.
+      Follow-up results do not affect scores or retry scheduling.
+
+
 FREEFORM DIAGNOSTIC MODE
 -------------------------
 

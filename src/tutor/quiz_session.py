@@ -8,6 +8,7 @@ from audio import record_audio, record_until_enter, record_until_silence
 from clients.stt_client import transcribe_wav
 from clients.tts_client import build_spoken_feedback, speak
 from tutor.grader import grade_response
+from tutor.followup import generate_followup_question, build_followup_response
 from tutor.session_state import card_id, load_session, new_session, save_session
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,54 @@ def _should_retry(transcript: str | None, grade: str) -> bool:
     return not transcript or grade in ("incorrect", "partially_correct")
 
 
+def _do_followup(
+    card: dict,
+    transcript: str,
+    grading: dict,
+    record_mode: str,
+    max_duration: float,
+    silence_duration: float,
+    min_record_duration: float,
+    energy_threshold: float | None,
+    speak_question: bool,
+    speak_feedback: bool,
+) -> None:
+    """Ask one follow-up question, record the answer, grade it, and speak a brief response."""
+    followup_q = generate_followup_question(
+        card["question"], card["answer"], transcript, grading["feedback"]
+    )
+    if not followup_q:
+        return
+
+    print(f"\n  Follow-up: {followup_q}")
+    if speak_question:
+        _try_speak(followup_q)
+
+    if not _prompt_enter_or_quit():
+        return
+
+    fu_transcript = _record_and_transcribe(
+        record_mode=record_mode,
+        max_duration=max_duration,
+        silence_duration=silence_duration,
+        min_record_duration=min_record_duration,
+        energy_threshold=energy_threshold,
+    )
+    if not fu_transcript:
+        return
+
+    try:
+        fu_grading = grade_response(card["question"], card["answer"], fu_transcript)
+    except RuntimeError as exc:
+        print(f"  [Grader error] {exc}")
+        return
+
+    response_text = build_followup_response(fu_grading["grade"], fu_grading)
+    print(f"  Tutor: {response_text}")
+    if speak_feedback:
+        _try_speak(response_text)
+
+
 def _answer_card(
     card: dict,
     label: str,
@@ -118,6 +167,7 @@ def _answer_card(
     speak_question: bool,
     speak_feedback: bool,
     scores: dict,
+    followups: bool = False,
 ) -> tuple[str | None, str | None]:
     """
     Run the record→grade→display pipeline for one card.
@@ -160,6 +210,20 @@ def _answer_card(
     if speak_feedback:
         _try_speak(build_spoken_feedback(grading))
 
+    if followups and grading["grade"] == "incorrect":
+        _do_followup(
+            card=card,
+            transcript=transcript,
+            grading=grading,
+            record_mode=record_mode,
+            max_duration=max_duration,
+            silence_duration=silence_duration,
+            min_record_duration=min_record_duration,
+            energy_threshold=energy_threshold,
+            speak_question=speak_question,
+            speak_feedback=speak_feedback,
+        )
+
     logger.info("Total card time: %.1fs", time.perf_counter() - loop_start)
     scores[grading["grade"]] = scores.get(grading["grade"], 0) + 1
 
@@ -176,6 +240,7 @@ def run_quiz(
     speak_feedback: bool = False,
     speak_question: bool = False,
     session_file: str | None = None,
+    followups: bool = False,
 ) -> None:
     # ── record kwargs bundle (avoids repeating at every call site) ──
     rec_kw = dict(
@@ -186,6 +251,7 @@ def run_quiz(
         energy_threshold=energy_threshold,
         speak_question=speak_question,
         speak_feedback=speak_feedback,
+        followups=followups,
     )
 
     # ── session setup ───────────────────────────────────────────────

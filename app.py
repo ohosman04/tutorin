@@ -161,6 +161,9 @@ def main():
         speak_feedback = "--speak-feedback" in args
         speak_question = "--speak-question" in args
 
+        # follow-up flag
+        followups = "--followups" in args
+
         # session flags
         from tutor.session_state import session_path_for
         session_file = None
@@ -209,6 +212,7 @@ def main():
             speak_feedback=speak_feedback,
             speak_question=speak_question,
             session_file=session_file,
+            followups=followups,
         )
 
     elif mode == "freeform":
