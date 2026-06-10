@@ -24,26 +24,7 @@ LANGUAGE_CONFIGS = {
         "piper_model": "~/piper/models/de_DE-thorsten-medium.onnx",
         "feedback_language": "German",
     },
-    "it": {
-        "stt_language": "it",
-        "piper_model": "~/piper/models/it_IT-riccardo-x_low.onnx",
-        "feedback_language": "Italian",
-    },
-    "pt": {
-        "stt_language": "pt",
-        "piper_model": "~/piper/models/pt_PT-tugao-medium.onnx",
-        "feedback_language": "Portuguese",
-    },
-    "zh": {
-        "stt_language": "zh",
-        "piper_model": "~/piper/models/zh_CN-huayan-medium.onnx",
-        "feedback_language": "Chinese",
-    },
-    "ja": {
-        "stt_language": "ja",
-        "piper_model": "~/piper/models/ja_JP-kokoro-medium.onnx",
-        "feedback_language": "Japanese",
-    },
+
 }
 
 

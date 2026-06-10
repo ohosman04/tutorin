@@ -148,9 +148,7 @@ Language resolution order (highest priority first):
     4. env/defaults    (PIPER_MODEL env var / built-in en_US-lessac model)
 
 Supported --language codes (built-in defaults):
-    en   English     es   Spanish     fr   French
-    de   German      it   Italian     pt   Portuguese
-    zh   Chinese     ja   Japanese
+    en   English     es   Spanish     fr   French     de   German
 
 For unlisted languages, use --stt-language and --piper-model explicitly.
 
