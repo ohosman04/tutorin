@@ -1,93 +1,186 @@
-# TutOrinAgent
+# TutOrin
 
+An AI-driven, voice-first tutoring agent that runs entirely at the edge on an NVIDIA Jetson. TutOrin loads flashcard decks, asks questions aloud, listens to spoken answers, grades them with a local LLM, and gives real-time feedback — no cloud required.
 
+## The Problem
 
-## Getting started
+Students often struggle with complex topics and need personalized, interactive help — not just static flashcards. Traditional study tools lack the ability to evaluate *how* you explain something out loud, or to adapt when you get something wrong.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## The Solution
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+TutOrin is a conversational tutoring agent that turns any Anki deck into an oral exam. It uses speech-to-text, local reasoning, and text-to-speech to create a natural study loop you can run anywhere, anytime.
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## How It Works
 
 ```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/oosman/tutorinagent.git
-git branch -M main
-git push -uf origin main
+Agent picks card → Asks question → User answers (voice)
+       ↑                                      ↓
+User answers follow-up ← Follow-up question ← Agent grades response
 ```
 
-## Integrate with your tools
+1. **Pick a card** — TutOrin selects the next card from your Anki deck.
+2. **Ask a question** — The question is displayed (and optionally spoken aloud).
+3. **Listen** — You answer by voice; the agent records and transcribes your response.
+4. **Grade** — A local LLM evaluates your answer against the expected response.
+5. **Follow up** — On incorrect answers, the agent can ask a targeted follow-up question.
+6. **Repeat** — Session progress is saved so you can resume where you left off.
 
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/oosman/tutorinagent/-/settings/integrations)
+## Architecture
 
-## Collaborate with your team
+TutOrin is designed to run fully on-device on an **NVIDIA Jetson Orin**, with each component playing a distinct role:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+| Component | Role | Technology |
+|-----------|------|------------|
+| **Ear** (input) | Speech-to-text | [Faster Whisper](https://github.com/SYSTRAN/faster-whisper) |
+| **Mouth** (output) | Text-to-speech | [Piper TTS](https://github.com/rhasspy/piper) |
+| **Tutor** (reasoning) | Grading & feedback | [Qwen 2.5 1.5B](https://ollama.com/library/qwen2.5) via Ollama |
+| **Agent** (orchestration) | Deck loading, session flow, conversation control | Python CLI (`app.py`) |
 
-## Test and Deploy
+```
+Speech → Reasoning → Feedback   (entirely at the edge)
+```
 
-Use the built-in continuous integration in GitLab.
+## Features
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- **Anki deck support** — Load any `.apkg` file and quiz yourself on its cards.
+- **Voice-based answers** — Record with auto-stop on silence, press-Enter, or fixed duration.
+- **LLM grading** — Paraphrase-aware evaluation with correct / partially correct / incorrect labels.
+- **Spoken feedback** — Optional TTS for questions and grading feedback.
+- **Adaptive follow-ups** — Targeted follow-up questions when you miss a concept.
+- **Session persistence** — Resume a deck session across runs.
+- **Multi-language** — Built-in support for English, Spanish, French, and German (STT, TTS, and grader).
+- **Freeform mode** — Diagnostic conversation loop for testing the full pipeline.
 
-***
+## Prerequisites
 
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **Hardware:** NVIDIA Jetson Orin (or any machine with a microphone; GPU accelerates STT)
+- **Python:** 3.10+
+- **Ollama** with `qwen2.5:1.5b` pulled
+- **Piper TTS** voice models (for spoken output)
+- An Anki deck (`.apkg` file)
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+```bash
+# Clone the repo
+git clone <repo-url>
+cd tutorin
+
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate   # Linux / Jetson
+# .venv\Scripts\activate    # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Pull the LLM model
+ollama pull qwen2.5:1.5b
+
+# Start the STT service (in a separate terminal)
+cd services/stt
+pip install -r requirements.txt
+uvicorn server:app --host 0.0.0.0 --port 8000
+
+# Or build and run the STT Docker container on Jetson
+docker build -t jetson-stt:latest ./services/stt
+docker run --rm --runtime nvidia --gpus all -p 8000:8000 jetson-stt:latest
+```
+
+For Piper TTS, download voice models from the [Piper releases page](https://github.com/rhasspy/piper/releases) and place them in `~/piper/models/`.
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Quiz mode (primary)
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+# Basic quiz with an Anki deck
+python app.py quiz --deck path/to/deck.apkg
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# Inspect field names in a deck before running
+python app.py quiz --deck deck.apkg --inspect-fields
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Full experience: spoken questions, spoken feedback, follow-ups, resumable session
+python app.py quiz --deck deck.apkg \
+    --speak-question \
+    --speak-feedback \
+    --followups \
+    --resume
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# Spanish deck with language-aware STT, TTS, and grading
+python app.py quiz --deck spanish.apkg --language es \
+    --speak-question --speak-feedback
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Freeform mode (diagnostic)
+
+```bash
+python app.py freeform
+```
+
+Records a short utterance, transcribes it, and sends it to the LLM for a conversational response. Useful for verifying that audio, STT, and Ollama are all working.
+
+### Run flags reference
+
+See [`run_flags.txt`](run_flags.txt) for the complete list of CLI flags, including recording modes, auto-silence tuning, session management, and multi-language overrides.
+
+## Project Structure
+
+```
+tutorin/
+├── app.py                  # CLI entry point (quiz + freeform modes)
+├── src/
+│   ├── anki_parser.py      # .apkg deck loader
+│   ├── audio.py            # Microphone recording utilities
+│   ├── clients/
+│   │   ├── stt_client.py   # Faster Whisper HTTP client
+│   │   ├── tts_client.py   # Piper TTS wrapper
+│   │   └── llm_client.py   # Ollama HTTP client
+│   └── tutor/
+│       ├── quiz_session.py # Main quiz loop
+│       ├── grader.py       # LLM-based answer grading
+│       ├── followup.py     # Adaptive follow-up generation
+│       ├── session_state.py# Session persistence
+│       └── lang_config.py  # Multi-language resolution
+├── services/
+│   └── stt/                # FastAPI STT microservice (Faster Whisper)
+└── tests/                  # Unit and integration tests
+```
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `STT_URL` | `http://localhost:8000` | STT service endpoint |
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
+| `OLLAMA_MODEL` | `qwen2.5:1.5b` | LLM model name |
+| `PIPER_MODEL` | `~/piper/models/en_US-lessac-medium.onnx` | Piper TTS voice model |
+| `WHISPER_MODEL` | `tiny.en` | Whisper model for STT server |
+| `RECORD_MAX_DURATION` | `60` | Max recording length (seconds) |
+
+## Running Tests
+
+```bash
+# Offline grader prompt test
+python tests/test_grader_prompt.py
+
+# Live grading (requires Ollama)
+python tests/test_grader_prompt.py --live
+
+# STT with a WAV file
+python tests/test_stt_transcribe.py recording.wav
+
+# LLM generation
+python tests/test_llm_generate.py "I have been studying Python for three months."
+
+# Full test suite
+pytest
+```
+
+## Goal
+
+Make education more accessible and personalized — giving every student a patient, always-available tutor that meets them where they are, entirely on local hardware.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+No license has been specified yet.
